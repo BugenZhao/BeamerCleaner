@@ -3,6 +3,7 @@ from PyPDF2 import PdfFileWriter, PdfFileReader
 import sys
 import os
 from tqdm import tqdm
+from multiprocessing import Pool
 
 infile = None
 
@@ -22,13 +23,25 @@ if len(list(filter(lambda s: 'beamer' in str(s).lower(), infos.values()))) == 0:
     sys.exit(-3)
 
 output = PdfFileWriter()
-page_nums = []
 output_page_nums = []
 
 print('Analyzing...')
-for page in tqdm(infile.pages):
-    text = str(page.extractText())
-    page_nums.append(text.splitlines()[-1])
+
+
+def worker(src_page_num: int):
+    text = str(infile.getPage(src_page_num).extractText())
+    return src_page_num, text.splitlines()[-1]
+
+
+pool = Pool(15)
+results = list(tqdm(pool.imap(worker, range(infile.getNumPages())), total=infile.getNumPages()))
+pool.close()
+pool.join()
+
+page_nums = {}
+
+for result in results:
+    page_nums[result[0]] = result[1]
 
 print('Comparing...')
 for i in tqdm(range(1, infile.getNumPages())):
